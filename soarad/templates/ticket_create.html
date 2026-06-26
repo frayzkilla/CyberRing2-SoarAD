@@ -367,6 +367,7 @@
             </div>
             
             <form method="POST" action="{{ url_for('ticket_create') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-group">
                     <label for="title">Заголовок тикета *</label>
                     <input 

@@ -381,6 +381,7 @@
         <div class="password-form">
             <h3>🔐 Смена пароля</h3>
             <form method="POST" action="{{ url_for('change_password', user_id=profile_user.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="form-group">
                     <label for="current_password">Текущий пароль</label>
                     <input type="password" id="current_password" name="current_password" required placeholder="Введите текущий пароль">

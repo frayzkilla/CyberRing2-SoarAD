@@ -1,12 +1,13 @@
 import base64
+import ipaddress
+import secrets
+import time
 import datetime
 import functools
 import hashlib
 import json
 import os
-import re
 import sqlite3
-import subprocess
 import re
 import logging 
 import sys
@@ -22,7 +23,9 @@ from flask import (
     request,
     url_for,
     flash,
+    session,
 )
+from werkzeug.security import check_password_hash, generate_password_hash
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,12 +39,124 @@ logger = logging.getLogger(__name__)
 logger.info("Starting SOAR Platform application...")
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "supersecretflaskkey"
+app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY") or secrets.token_urlsafe(32)
+app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", 1024 * 1024))
 
-JWT_SECRET = "secret"
+JWT_SECRET = os.environ.get("JWT_SECRET") or secrets.token_urlsafe(32)
 JWT_ALGORITHM = "HS256"
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1").lower() not in {"0", "false", "no"}
+COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "Lax")
+TOKEN_TTL_SECONDS = int(os.environ.get("TOKEN_TTL_SECONDS", 3600))
 
-DATABASE = "/app/data/soar.db"
+DATABASE = os.environ.get("DATABASE", "/app/data/soar.db")
+
+_login_attempts = {}
+
+def hash_password(password):
+    return generate_password_hash(password, method="scrypt")
+
+def verify_password(stored_hash, password):
+    legacy_sha256 = hashlib.sha256(password.encode()).hexdigest()
+    if stored_hash == legacy_sha256:
+        return True
+    try:
+        return check_password_hash(stored_hash, password)
+    except ValueError:
+        return False
+
+def set_auth_cookie(resp, token):
+    resp.set_cookie(
+        "token", token, httponly=True, secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE, max_age=TOKEN_TTL_SECONDS, path="/"
+    )
+
+def valid_identifier(value, max_len=64):
+    return bool(re.fullmatch(r"[A-Za-z0-9_. -]{1,%d}" % max_len, value or ""))
+
+def validate_port(value):
+    try:
+        port = int(value)
+    except (TypeError, ValueError):
+        return None
+    return port if 1 <= port <= 65535 else None
+
+def validate_ip_or_host(value):
+    if not value or len(value) > 253:
+        return False
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return bool(re.fullmatch(r"[A-Za-z0-9.-]{1,253}", value))
+
+def validate_script_param(name, value):
+    if len(value) > 512:
+        return False
+    if name == "target_ip":
+        return validate_ip_or_host(value)
+    if name == "account_name":
+        return bool(re.fullmatch(r"[A-Za-z0-9_.@-]{1,128}", value))
+    if name in {"scan_path", "search_dir"}:
+        return bool(re.fullmatch(r"[A-Za-z0-9_./ -]{1,512}", value))
+    return True
+
+def valid_text_lengths(**fields):
+    limits = {
+        "title": 200,
+        "description": 5000,
+        "confidential_data": 10000,
+        "summary": 5000,
+    }
+    return all(len(value or "") <= limits[name] for name, value in fields.items())
+
+def too_many_attempts(key, limit=5, window=60):
+    now = time.time()
+    attempts = [t for t in _login_attempts.get(key, []) if now - t < window]
+    if len(attempts) >= limit:
+        _login_attempts[key] = attempts
+        return True
+    attempts.append(now)
+    _login_attempts[key] = attempts
+    return False
+
+def csrf_token():
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["csrf_token"] = token
+    return token
+
+@app.context_processor
+def inject_csrf_token():
+    return {"csrf_token": csrf_token}
+
+@app.before_request
+def enforce_csrf_token():
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return None
+    if request.path.startswith("/api/") and request.headers.get("Authorization", "").startswith("Bearer "):
+        return None
+    if request.path.startswith("/api/") and not request.cookies.get("token"):
+        return None
+    sent_token = request.form.get("csrf_token") or request.headers.get("X-CSRFToken")
+    if not sent_token or not secrets.compare_digest(sent_token, session.get("csrf_token", "")):
+        if request.path.startswith("/api/"):
+            return json_response({"error": "CSRF token missing or invalid"}), 403
+        flash("Недействительный CSRF-токен", "error")
+        return redirect(url_for("login_page"))
+
+@app.after_request
+def set_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+        "object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+    )
+    return response
 
 AVAILABLE_SCRIPTS = {
     "collect_processes": {"name": "Сбор запущенных процессов", "params": ["target_ip"]},
@@ -120,19 +235,23 @@ def init_db():
             FOREIGN KEY (organization) REFERENCES users(organization) ON DELETE CASCADE
         );
     """)
-    pw = hashlib.sha256(b"admin").hexdigest()
-    try:
-        db.execute(
-            "INSERT INTO users (username, password, role, organization) VALUES (?, ?, ?, ?)",
-            ("admin", pw, "admin", "MainOrg"),
-        )
-        db.execute(
-            "INSERT INTO users (username, password, role, organization) VALUES (?, ?, ?, ?)",
-            ("org_admin", pw, "org_admin", "MainOrg"),
-        )
-        db.commit()
-    except sqlite3.IntegrityError:
-        pass
+    bootstrap_password = os.environ.get("BOOTSTRAP_ADMIN_PASSWORD")
+    if bootstrap_password:
+        pw = hash_password(bootstrap_password)
+        try:
+            db.execute(
+                "INSERT INTO users (username, password, role, organization) VALUES (?, ?, ?, ?)",
+                (os.environ.get("BOOTSTRAP_ADMIN_USERNAME", "admin"), pw, "super_admin", os.environ.get("BOOTSTRAP_ADMIN_ORG", "MainOrg")),
+            )
+            db.commit()
+        except sqlite3.IntegrityError:
+            pass
+    legacy_admin_hash = hashlib.sha256(b"admin").hexdigest()
+    db.execute(
+        "DELETE FROM users WHERE username IN ('admin', 'org_admin') AND password = ?",
+        (legacy_admin_hash,),
+    )
+    db.commit()
 
 
 def create_token(user_id, username, role, organization):
@@ -141,7 +260,7 @@ def create_token(user_id, username, role, organization):
         "username": username,
         "role": role,
         "organization": organization,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24),
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=TOKEN_TTL_SECONDS),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -162,7 +281,21 @@ def get_current_user():
         token = request.cookies.get("token")
     if not token:
         return None
-    return decode_token(token)
+    payload = decode_token(token)
+    if not payload:
+        return None
+    user = get_db().execute(
+        "SELECT id, username, role, organization FROM users WHERE id = ?",
+        (payload.get("user_id"),),
+    ).fetchone()
+    if not user:
+        return None
+    return {
+        "user_id": user["id"],
+        "username": user["username"],
+        "role": user["role"],
+        "organization": user["organization"],
+    }
 
 
 def login_required(f):
@@ -183,7 +316,7 @@ def admin_required(f):
     @functools.wraps(f)
     @login_required
     def wrapper(*args, **kwargs):
-        if g.current_user.get("role") != "admin":
+        if g.current_user.get("role") not in ["admin", "super_admin"]:
             return json_response({"error": "Admin access required"}), 403
         return f(*args, **kwargs)
 
@@ -193,7 +326,7 @@ def org_admin_required(f):
     @functools.wraps(f)
     @login_required
     def wrapper(*args, **kwargs):
-        if g.current_user.get("role") != "org_admin" and g.current_user.get("role") != "local_org_admin":
+        if g.current_user.get("role") not in ["org_admin", "local_org_admin", "super_admin"]:
             return json_response({"error": "Organization admin access required"}), 403
         return f(*args, **kwargs)
 
@@ -302,6 +435,9 @@ def ticket_edit(ticket_id):
         if not title:
             flash("Название тикета обязательно", "error")
             return render_template("ticket_edit.html", user=g.current_user, ticket=ticket, is_admin=is_admin)
+        if not valid_text_lengths(title=title, description=description, confidential_data=confidential_data, summary=summary):
+            flash("Одно или несколько полей превышают допустимую длину", "error")
+            return render_template("ticket_edit.html", user=g.current_user, ticket=ticket, is_admin=is_admin)
         
         db.execute(
             """
@@ -329,7 +465,7 @@ def ticket_scripts(ticket_id):
         flash("Тикет не найден", "error")
         return redirect(url_for("tickets"))
     
-    if g.current_user.get("role") not in ["admin", "org_admin"]:
+    if g.current_user.get("role") not in ["admin", "org_admin", "super_admin"]:
         flash("Только администратор может запускать скрипты реагирования", "error")
         return redirect(url_for("ticket_detail", ticket_id=ticket_id))
     
@@ -355,7 +491,7 @@ def ticket_scripts(ticket_id):
 def ticket_run_script(ticket_id):
     db = get_db()
     
-    if g.current_user.get("role") not in ["admin", "org_admin"]:
+    if g.current_user.get("role") not in ["admin", "org_admin", "super_admin"]:
         flash("Только администратор может запускать скрипты реагирования", "error")
         return redirect(url_for("ticket_detail", ticket_id=ticket_id))
     
@@ -391,6 +527,9 @@ def ticket_run_script(ticket_id):
         param_value = request.form.get(param, "").strip()
         if not param_value:
             flash(f"Параметр '{param}' обязателен для заполнения", "error")
+            return redirect(url_for("ticket_scripts", ticket_id=ticket_id))
+        if not validate_script_param(param, param_value):
+            flash(f"Параметр '{param}' содержит недопустимое значение", "error")
             return redirect(url_for("ticket_scripts", ticket_id=ticket_id))
         params[param] = param_value
     
@@ -435,6 +574,9 @@ def ticket_create():
         if not title:
             flash("Название тикета обязательно", "error")
             return render_template("ticket_create.html", user=g.current_user)
+        if not valid_text_lengths(title=title, description=description, confidential_data=confidential_data):
+            flash("Одно или несколько полей превышают допустимую длину", "error")
+            return render_template("ticket_create.html", user=g.current_user)
         
         db = get_db()
         db.execute(
@@ -460,27 +602,28 @@ def login_page():
     if request.method == "POST":
         username = request.form.get("username", "")
         password = request.form.get("password", "")
+        if too_many_attempts(f"web:{request.remote_addr}:{username}"):
+            error = "Слишком много попыток входа, попробуйте позже"
+            return render_template("login.html", error=error), 429
         if not username or not password:
             error = "Заполните все поля"
         else:
-            pw_hash = hashlib.sha256(password.encode()).hexdigest()
-
             user = (
                 get_db()
                 .execute(
-                    "SELECT * FROM users WHERE username = ? AND password = ?",
-                    (username, pw_hash),
+                    "SELECT * FROM users WHERE username = ?",
+                    (username,),
                 )
                 .fetchone()
             )
 
-            if user:
+            if user and verify_password(user["password"], password):
                 token = create_token(user["id"], user["username"], user["role"], user["organization"])
                 if user["role"] == "org_admin" or user["role"] == "local_org_admin":
                     resp = make_response(redirect(url_for("organizations")))
                 else:
                     resp = make_response(redirect(url_for("tickets")))
-                resp.set_cookie("token", token, httponly=True)
+                set_auth_cookie(resp, token)
                 return resp
             error = "Неверные учётные данные"
     return render_template("login.html", error=error)
@@ -494,21 +637,25 @@ def register_page():
         password = request.form.get("password", "").strip()
         organization = request.form.get("organization", "").strip()
         
-        if not username or not password or not organization:
+        if too_many_attempts(f"register:{request.remote_addr}", limit=10, window=3600):
+            error = "Слишком много регистраций, попробуйте позже"
+        elif not username or not password or not organization:
             error = "Заполните все поля"
+        elif not valid_identifier(username, 32) or not valid_identifier(organization, 64):
+            error = "Имя пользователя или организации содержит недопустимые символы"
         elif len(password) < 6:
             error = "Пароль должен быть не менее 6 символов"
         elif not re.match(r'^[a-zA-Z0-9!@$_,.?]+$', password):
             error = "Пароль может содержать только латинские буквы, цифры и специальные символы !@$_,.?"
         else:
-            pw_hash = hashlib.sha256(password.encode()).hexdigest()
+            pw_hash = hash_password(password)
             db = get_db()
             existing_org = db.execute(
                 "SELECT organization FROM users WHERE organization = ? LIMIT 1",
                 (organization,)
             ).fetchone()
             if not existing_org:
-                role = "local_org_admin"
+                role = "local_org_admin" if os.environ.get("ALLOW_ORG_SELF_BOOTSTRAP", "0") == "1" else "user"
             else:
                 role = "user"
 
@@ -518,9 +665,9 @@ def register_page():
                     (username, pw_hash, role, organization),
                 )
                 db.commit()
-                token = create_token(cur.lastrowid, username, "user", organization)
+                token = create_token(cur.lastrowid, username, role, organization)
                 resp = make_response(redirect(url_for("login_page")))
-                resp.set_cookie("token", token, httponly=True)
+                set_auth_cookie(resp, token)
                 return resp
             except sqlite3.IntegrityError:
                 error = "Пользователь уже существует"
@@ -532,7 +679,7 @@ def register_page():
 @app.route("/logout")
 def logout():
     resp = make_response(redirect(url_for("login_page")))
-    resp.set_cookie("token", "", expires=0)
+    resp.set_cookie("token", "", expires=0, httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, path="/")
     return resp
 
 @app.route("/organizations")
@@ -540,7 +687,7 @@ def logout():
 def organizations():
     db = get_db()
     
-    if g.current_user["role"] == "org_admin":
+    if g.current_user["role"] == "super_admin":
         organizations = db.execute("""
             SELECT 
                 u.organization,
@@ -576,7 +723,7 @@ def organizations():
 def organization_detail(org_name):
     db = get_db()
     
-    if g.current_user["role"] == "local_org_admin":
+    if g.current_user["role"] != "super_admin":
         if org_name != g.current_user["organization"]:
             flash("У вас нет доступа к этой организации", "error")
             return redirect(url_for("organizations"))
@@ -636,15 +783,22 @@ def organization_settings(org_name):
         ip = request.form.get("ip", "").strip()
         port = request.form.get("port", "").strip()
         api_key = request.form.get("api_key", "").strip()
+        if not api_key and settings:
+            api_key = settings["api_key"]
         
-        if port and not port.isdigit():
-            flash("Порт должен быть числом", "error")
+        port_int = validate_port(port) if port else 0
+        if port and port_int is None:
+            flash("Порт должен быть числом от 1 до 65535", "error")
             return render_template("organization_settings.html", 
                                  user=g.current_user, 
                                  org_name=org_name, 
                                  settings=settings)
-        
-        port_int = int(port) if port else 0
+        if ip and not validate_ip_or_host(ip):
+            flash("IP/hostname содержит недопустимые символы", "error")
+            return render_template("organization_settings.html",
+                                 user=g.current_user,
+                                 org_name=org_name,
+                                 settings=settings)
         
         db.execute("""
             UPDATE organization_settings 
@@ -693,17 +847,17 @@ def change_user_role(org_name):
     
     current_user_role = g.current_user["role"]
     
-    if current_user_role == "local_org_admin":
+    if current_user_role != "super_admin":
         if org_name != g.current_user["organization"]:
             flash("У вас нет прав на изменение ролей в этой организации", "error")
             return redirect(url_for("organizations"))
         
-        if new_role == "org_admin":
-            flash("Администратор организации не может назначать роль org_admin", "error")
+        if new_role in ["org_admin", "super_admin"]:
+            flash("Администратор организации не может назначать глобальные роли", "error")
             return redirect(url_for("organization_detail", org_name=org_name))
         
-        if user["role"] == "org_admin":
-            flash("Нельзя изменять роль администратора организации", "error")
+        if user["role"] in ["org_admin", "super_admin"]:
+            flash("Нельзя изменять роль глобального администратора", "error")
             return redirect(url_for("organization_detail", org_name=org_name))
     
     
@@ -781,13 +935,11 @@ def change_password(user_id):
         flash("Пользователь не найден", "error")
         return redirect(url_for("tickets"))
     
-    current_password_hash = hashlib.sha256(current_password.encode()).hexdigest()
-    
-    if user["password"] != current_password_hash:
+    if not verify_password(user["password"], current_password):
         flash("Неверный текущий пароль", "error")
         return redirect(url_for("user_profile", user_id=user_id))
     
-    new_password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    new_password_hash = hash_password(new_password)
 
     db.execute("UPDATE users SET password = ? WHERE id = ?", (new_password_hash, user_id))
     db.commit()
@@ -807,9 +959,13 @@ def json_response(data, status=200):
 @app.route("/api/admin/users", methods=["GET"])
 @admin_required
 def api_admin_users():
-    rows = (
-        get_db().execute("SELECT id, username, role, created_at FROM users").fetchall()
-    )
+    if g.current_user.get("role") == "super_admin":
+        rows = get_db().execute("SELECT id, username, role, organization, created_at FROM users").fetchall()
+    else:
+        rows = get_db().execute(
+            "SELECT id, username, role, organization, created_at FROM users WHERE organization = ?",
+            (g.current_user["organization"],),
+        ).fetchall()
     return json_response([dict(r) for r in rows])
 
 @app.route("/api/tickets", methods=["GET"])
@@ -853,7 +1009,7 @@ def api_admin_ticket_id(ticket_id):
     if not ticket:
         return json_response({"error": "Ticket not found"}), 404
 
-    if ticket["organization"] != g.current_user["organization"]:
+    if g.current_user.get("role") != "super_admin" and ticket["organization"] != g.current_user["organization"]:
         return json_response({"error": "Only for organization members"}), 403
     
     return json_response(dict(ticket))
@@ -866,12 +1022,14 @@ def api_login_ticket_scripts(ticket_id):
     ticket = db.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
     if not ticket:
         return json_response({"error": "Ticket not found"}), 404
+    if g.current_user.get("role") != "super_admin" and ticket["organization"] != g.current_user["organization"]:
+        return json_response({"error": "Only for organization members"}), 403
     
     scripts = db.execute("""
         SELECT * FROM script_results 
-        WHERE ticket_id = ? 
+        WHERE ticket_id = ? AND organization = ?
         ORDER BY executed_at DESC
-    """, (ticket_id,)).fetchall()
+    """, (ticket_id, ticket["organization"])).fetchall()
     
     return json_response([dict(r) for r in scripts])
 
@@ -886,20 +1044,24 @@ def api_register():
     username = data.get("username", "").strip()
     password = data.get("password", "").strip()
     organization = data.get("organization", "").strip()
+    if too_many_attempts(f"api-register:{request.remote_addr}", limit=10, window=3600):
+        return json_response({"error": "Too many registration attempts"}), 429
     if not username or not password or not organization:
         return json_response({"error": "Заполните все поля"}), 400
+    elif not valid_identifier(username, 32) or not valid_identifier(organization, 64):
+        return json_response({"error": "Invalid username or organization"}), 400
     elif len(password) < 6:
         return json_response({"error": "Пароль должен быть не менее 6 символов"}), 400
     elif not re.match(r'^[a-zA-Z0-9!@$_,.?]+$', password):
         return json_response({"error": "Пароль может содержать только латинские буквы, цифры и специальные символы !@$_,.?"}), 400
-    pw_hash = hashlib.sha256(password.encode()).hexdigest()
+    pw_hash = hash_password(password)
     db = get_db()
     existing_org = db.execute(
                 "SELECT organization FROM users WHERE organization = ? LIMIT 1",
                 (organization,)
             ).fetchone()
     if not existing_org:
-        role = "local_org_admin"
+        role = "local_org_admin" if os.environ.get("ALLOW_ORG_SELF_BOOTSTRAP", "0") == "1" else "user"
     else:
         role = "user"
     try:
@@ -908,9 +1070,9 @@ def api_register():
             (username, pw_hash, role, organization),
         )
         db.commit()
-        token = create_token(cur.lastrowid, username, "user", organization)
+        token = create_token(cur.lastrowid, username, role, organization)
         resp = make_response(redirect(url_for("login_page")))
-        resp.set_cookie("token", token, httponly=True)
+        set_auth_cookie(resp, token)
         return json_response({"result": "success"}), 201
     except sqlite3.IntegrityError:
         return json_response({"error": "Username already exists"}), 409
@@ -924,16 +1086,16 @@ def api_login():
     
     if not username or not password:
         return json_response({"error": "Username and password are required"}), 400
-    
-    pw_hash = hashlib.sha256(password.encode()).hexdigest()
+    if too_many_attempts(f"api-login:{request.remote_addr}:{username}"):
+        return json_response({"error": "Too many login attempts"}), 429
     
     db = get_db()
     user = db.execute(
-        "SELECT * FROM users WHERE username = ? AND password = ?",
-        (username, pw_hash)
+        "SELECT * FROM users WHERE username = ?",
+        (username,)
     ).fetchone()
     
-    if not user:
+    if not user or not verify_password(user["password"], password):
         return json_response({"error": "Invalid username or password"}), 401
     
     token = create_token(user["id"], user["username"], user["role"], user["organization"])
@@ -954,7 +1116,7 @@ def api_login():
 def api_ticket_run_script(ticket_id):
     db = get_db()
     
-    if g.current_user.get("role") not in ["admin", "org_admin"]:
+    if g.current_user.get("role") not in ["admin", "org_admin", "super_admin"]:
         return json_response({"error": "Only administrators can run scripts"}), 403
     
     ticket = db.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
@@ -986,6 +1148,8 @@ def api_ticket_run_script(ticket_id):
         param_value = data.get(param, "").strip()
         if not param_value:
             return json_response({"error": f"Parameter '{param}' is required"}), 400
+        if not validate_script_param(param, param_value):
+            return json_response({"error": f"Parameter '{param}' is invalid"}), 400
         params[param] = param_value
     
     params_str = json.dumps(params, ensure_ascii=False)
@@ -1042,6 +1206,8 @@ def api_create_ticket():
     
     if not title:
         return json_response({"error": "Title is required"}), 400
+    if not valid_text_lengths(title=title, description=description, confidential_data=confidential_data):
+        return json_response({"error": "One or more fields exceed maximum length"}), 400
     
     if priority not in ["low", "medium", "high"]:
         priority = "medium"
@@ -1073,7 +1239,8 @@ def api_create_ticket():
         }), 201
         
     except Exception as e:
-        return json_response({"error": f"Failed to create ticket: {str(e)}"}), 500
+        logger.exception("Failed to create ticket: %s", e)
+        return json_response({"error": "Failed to create ticket"}), 500
     
 
 @app.route("/api/organizations", methods=["GET"])
@@ -1081,7 +1248,7 @@ def api_create_ticket():
 def api_organizations():
     db = get_db()
     
-    if g.current_user["role"] == "org_admin":
+    if g.current_user["role"] == "super_admin":
         organizations = db.execute("""
             SELECT 
                 u.organization,
@@ -1130,7 +1297,7 @@ def api_organizations():
 def api_organization_detail(org_name):
     db = get_db()
     
-    if g.current_user["role"] == "local_org_admin":
+    if g.current_user["role"] != "super_admin":
         if org_name != g.current_user["organization"]:
             return json_response({"error": "Access denied. You can only view your own organization"}), 403
     
@@ -1208,9 +1375,11 @@ def api_organization_settings(org_name):
                 }
             }, 200)
         
+        safe_settings = dict(settings)
+        safe_settings["api_key"] = "********" if safe_settings.get("api_key") else ""
         return json_response({
             "success": True,
-            "settings": dict(settings)
+            "settings": safe_settings
         }, 200)
     
     elif request.method == "POST":
@@ -1219,11 +1388,18 @@ def api_organization_settings(org_name):
         ip = data.get("ip", "").strip()
         port = data.get("port", 0)
         api_key = data.get("api_key", "").strip()
+        port = validate_port(port) if port else 0
+        if port is None:
+            return json_response({"error": "Port must be between 1 and 65535"}), 400
+        if ip and not validate_ip_or_host(ip):
+            return json_response({"error": "Invalid IP address or hostname"}), 400
         
         settings = db.execute("""
             SELECT * FROM organization_settings 
             WHERE organization = ?
         """, (org_name,)).fetchone()
+        if not api_key and settings:
+            api_key = settings["api_key"]
         
         if not settings:
             db.execute("""
@@ -1245,7 +1421,7 @@ def api_organization_settings(org_name):
             "settings": {
                 "ip": ip,
                 "port": port,
-                "api_key": api_key
+                "api_key": "********" if api_key else ""
             }
         }, 200)
 
@@ -1287,15 +1463,15 @@ def api_change_user_role(org_name):
     current_user_org = g.current_user["organization"]
     
 
-    if current_user_role == "local_org_admin":
+    if current_user_role != "super_admin":
         if org_name != current_user_org:
             return json_response({"error": "You don't have permission to change roles in this organization"}), 403
         
-        if new_role == "org_admin":
-            return json_response({"error": "Local organization admin cannot assign org_admin role"}), 403
+        if new_role in ["org_admin", "super_admin"]:
+            return json_response({"error": "Organization admin cannot assign global roles"}), 403
         
-        if user["role"] == "org_admin":
-            return json_response({"error": "Cannot change role of organization administrator"}), 403
+        if user["role"] in ["org_admin", "super_admin"]:
+            return json_response({"error": "Cannot change role of global administrator"}), 403
     
     db.execute("UPDATE users SET role = ? WHERE id = ?", (new_role, user_id))
     db.commit()
@@ -1383,12 +1559,10 @@ def api_change_password(user_id):
     if not user:
         return json_response({"error": "User not found"}), 404
     
-    current_password_hash = hashlib.sha256(current_password.encode()).hexdigest()
-    
-    if user["password"] != current_password_hash:
+    if not verify_password(user["password"], current_password):
         return json_response({"error": "Current password is incorrect"}), 401
     
-    new_password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+    new_password_hash = hash_password(new_password)
     
     db.execute("UPDATE users SET password = ? WHERE id = ?", (new_password_hash, user_id))
     db.commit()
@@ -1414,4 +1588,3 @@ if __name__ == "__main__":
     with app.app_context():
         init_db()
     app.run(host="0.0.0.0", port=8080, debug=False)
-

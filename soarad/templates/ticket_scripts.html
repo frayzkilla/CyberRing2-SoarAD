@@ -603,6 +603,7 @@
                     </div>
                     <div class="script-body">
                         <form method="POST" action="{{ url_for('ticket_run_script', ticket_id=ticket.id) }}" class="script-form" id="form-{{ key }}" style="display: none;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="script_key" value="{{ key }}">
                             {% for param in script.params %}
                             <div class="param-group">
@@ -642,8 +643,8 @@
                         <tr>
                             <td>#{{ script.id }}</td>
                             <td>
-                                <span class="script-name-link" 
-                                      onclick="openModal({{ script.id }}, '{{ script.script_name|replace("'", "\\'") }}', '{{ script.parameters|replace("'", "\\'") }}', '{{ script.output|replace("'", "\\'") }}', '{{ script.executed_at }}')">
+                                <span class="script-name-link"
+                                      onclick='openModal({{ script.id|tojson }}, {{ script.script_name|tojson }}, {{ script.parameters|tojson }}, {{ script.output|tojson }}, {{ script.executed_at|tojson }})'>
                                     {{ script.script_name }}
                                 </span>
                             </td>

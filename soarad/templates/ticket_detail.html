@@ -632,7 +632,7 @@
                 <h3 class="section-title">📝 Описание</h3>
                 <div class="description-box">
                     {% if ticket.description %}
-                        {{ ticket.description | replace('\n', '<br>') | safe }}
+                        {{ ticket.description }}
                     {% else %}
                         <em style="color: #999;">Описание отсутствует</em>
                     {% endif %}
@@ -654,7 +654,7 @@
                         <div class="summary-divider"></div>
                         <div class="summary-content">
                             <div class="summary-text">
-                                {{ ticket.summary | replace('\n', '<br>') | safe }}
+                                {{ ticket.summary }}
                             </div>
                             {% if ticket.status == 'closed' %}
                             <div class="summary-footer">
