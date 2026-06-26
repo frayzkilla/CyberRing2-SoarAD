@@ -10,4 +10,8 @@ services:
       - ./data:/app/data
     environment:
       - DATABASE=/app/data/soar.db
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:?set FLASK_SECRET_KEY}
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET}
+      - COOKIE_SECURE=${COOKIE_SECURE:-0}
+      - TOKEN_TTL_SECONDS=${TOKEN_TTL_SECONDS:-3600}
     restart: unless-stopped

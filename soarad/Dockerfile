@@ -10,7 +10,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Создаем папку для базы данных
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data \
+    && adduser --disabled-password --gecos "" appuser \
+    && chown -R appuser:appuser /app
+
+USER appuser
 
 # Открываем порт
 EXPOSE 8000

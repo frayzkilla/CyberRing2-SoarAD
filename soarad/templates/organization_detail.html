@@ -453,6 +453,7 @@
                                     
                                     {% if can_change %}
                                     <form method="POST" action="{{ url_for('change_user_role', org_name=org_name) }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <input type="hidden" name="user_id" value="{{ u.id }}">
                                         <select name="new_role" class="role-select">
                                             <option value="user" {% if u.role == 'user' %}selected{% endif %}>Пользователь</option>

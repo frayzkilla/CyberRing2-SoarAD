@@ -287,6 +287,7 @@
                 {% endwith %}
                 
                 <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="form-group">
                         <label for="ip">🌐 IP адрес</label>
                         <input type="text" id="ip" name="ip" 
@@ -306,9 +307,9 @@
                     <div class="form-group">
                         <label for="api_key">🔑 API Key</label>
                         <input type="password" id="api_key" name="api_key" 
-                               placeholder="Введите API ключ"
-                               value="{{ settings.api_key if settings else '' }}">
-                        <div class="help-text">API ключ для аутентификации</div>
+                               placeholder="Оставьте пустым, чтобы не менять ключ"
+                               value="">
+                        <div class="help-text">API ключ скрыт и не отображается после сохранения</div>
                     </div>
                     
                     <button type="submit" class="btn-save">💾 Сохранить настройки</button>
