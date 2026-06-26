@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ org_name }} | Управление пользователями | SOAR Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .navbar {
+            background: white;
+            padding: 15px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-profile-link {
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .user-profile-link:hover {
+            opacity: 0.9;
+            transition: opacity 0.2s;
+        }
+        
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .logo-link {
+            text-decoration: none;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .organization-badge {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+        
+        .user-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        .role-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+        
+        .logout-btn {
+            color: #666;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        
+        .logout-btn:hover {
+            background: #f0f0f0;
+        }
+        
+        .admin-link {
+            color: #667eea;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: background 0.3s;
+            font-weight: 500;
+        }
+        
+        .admin-link:hover {
+            background: #f0f0f0;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .header-section h1 {
+            color: #333;
+            font-size: 28px;
+        }
+        
+        .btn-back {
+            color: #666;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        
+        .btn-back:hover {
+            background: #f0f0f0;
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+        
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .org-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .org-header h2 {
+            margin: 0;
+            font-size: 24px;
+        }
+        
+        .org-header p {
+            margin: 5px 0 0;
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .users-table {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            background: #f8f9fa;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #555;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+            vertical-align: middle;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .role-select {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .role-select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .role-select:disabled {
+            background: #f0f0f0;
+            cursor: not-allowed;
+        }
+        
+        .btn-change {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        
+        .btn-change:hover {
+            background: #5a67d8;
+        }
+        
+        .btn-change:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .role-badge-display {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .role-org-admin {
+            background: #667eea;
+            color: white;
+        }
+        
+        .role-local-org-admin {
+            background: #9b59b6;
+            color: white;
+        }
+        
+        .role-admin {
+            background: #28a745;
+            color: white;
+        }
+        
+        .role-user {
+            background: #e0e0e0;
+            color: #666;
+        }
+        
+        .current-user-badge {
+            background: #ffd700;
+            color: #333;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: #999;
+        }
+        
+        .warning-note {
+            background: #fff3cd;
+            color: #856404;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ffc107;
+            font-size: 14px;
+        }
+        
+        .info-note {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #17a2b8;
+            font-size: 14px;
+        }
+        
+        .action-cell {
+            white-space: nowrap;
+        }
+        
+        .disabled-action {
+            color: #999;
+            font-size: 13px;
+        }
+        .organization-badge-link {
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .organization-badge-link:hover {
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="{{ url_for('tickets') }}" class="logo-link">
+            <div class="logo">🚀 SOAR Platform</div>
+        </a>
+        <div class="user-info">
+            {% if user.role in ['org_admin', 'local_org_admin'] %}
+                <a href="{{ url_for('organization_settings', org_name=user.organization) }}" class="organization-badge-link">
+                    <div class="organization-badge">
+                        🏢 {{ user.organization }}
+                    </div>
+                </a>
+            {% else %}
+                <div class="organization-badge">
+                    🏢 {{ user.organization }}
+                </div>
+            {% endif %}
+            
+            {% if user.role in ['org_admin', 'local_org_admin'] %}
+                <a href="{{ url_for('organizations') }}" class="admin-link">🏢 Организации</a>
+            {% endif %}
+            
+            <a href="{{ url_for('user_profile', user_id=user.user_id) }}" class="user-profile-link">
+                <span class="user-badge">
+                    {{ user.username }} 
+                    <span class="role-badge">{{ user.role }}</span>
+                </span>
+            </a>
+            <a href="{{ url_for('logout') }}" class="logout-btn">Выйти</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="header-section">
+            <h1>👥 Управление пользователями</h1>
+            <a href="{{ url_for('organizations') }}" class="btn-back">← Назад к организациям</a>
+        </div>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        <div class="org-header">
+            <h2>🏢 Организация: {{ org_name }}</h2>
+            <p>Управление ролями пользователей</p>
+        </div>
+        
+        {% if user.role == 'local_org_admin' %}
+        <div class="info-note">
+            ℹ️ Вы вошли как <strong>локальный администратор организации</strong>.<br>
+            • Вы можете изменять роли пользователей в вашей организации<br>
+            • Вы <strong>НЕ можете</strong> назначать роль <strong>org_admin</strong><br>
+            • Вы <strong>НЕ можете</strong> изменять роль пользователей с ролью <strong>org_admin</strong>
+        </div>
+        {% endif %}
+        
+        <div class="warning-note">
+            ⚠️ Иерархия ролей:<br>
+            • <strong>org_admin</strong> - глобальный администратор, полное управление всеми организациями<br>
+            • <strong>local_org_admin</strong> - локальный администратор организации, управляет пользователями своей организации (не может назначать org_admin)<br>
+            • <strong>admin</strong> - может запускать скрипты и видеть все тикеты организации<br>
+            • <strong>user</strong> - обычный пользователь, видит только свои тикеты
+        </div>
+        
+        <div class="users-table">
+            {% if users %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Имя пользователя</th>
+                            <th>Текущая роль</th>
+                            <th>Изменить роль</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in users %}
+                        <tr>
+                            <td>{{ u.id }}</td>
+                            <td>
+                                {{ u.username }}
+                                {% if u.id == user.user_id %}
+                                    <span class="current-user-badge">(вы)</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if u.role == 'org_admin' %}
+                                    <span class="role-badge-display role-org-admin">🌍 Глобальный администратор</span>
+                                {% elif u.role == 'local_org_admin' %}
+                                    <span class="role-badge-display role-local-org-admin">🏪 Локальный администратор</span>
+                                {% elif u.role == 'admin' %}
+                                    <span class="role-badge-display role-admin">⚙️ Администратор</span>
+                                {% else %}
+                                    <span class="role-badge-display role-user">👤 Пользователь</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if u.username == 'admin' %}
+                                    <select class="role-select" disabled>
+                                        <option value="user">Пользователь</option>
+                                        <option value="admin" selected>Администратор</option>
+                                        <option value="local_org_admin">Локальный администратор</option>
+                                        <option value="org_admin">Глобальный администратор</option>
+                                    </select>
+                                {% elif u.id == user.user_id %}
+                                    <select class="role-select" disabled>
+                                        <option value="user" {% if u.role == 'user' %}selected{% endif %}>Пользователь</option>
+                                        <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Администратор</option>
+                                        <option value="local_org_admin" {% if u.role == 'local_org_admin' %}selected{% endif %}>Локальный администратор</option>
+                                        <option value="org_admin" {% if u.role == 'org_admin' %}selected{% endif %}>Глобальный администратор</option>
+                                    </select>
+                                {% else %}
+                                    {% set can_change = true %}
+                                    {% if user.role == 'local_org_admin' %}
+                                        {% if u.role == 'org_admin' %}
+                                            {% set can_change = false %}
+                                        {% endif %}
+                                    {% endif %}
+                                    
+                                    {% if can_change %}
+                                    <form method="POST" action="{{ url_for('change_user_role', org_name=org_name) }}">
+                                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                                        <select name="new_role" class="role-select">
+                                            <option value="user" {% if u.role == 'user' %}selected{% endif %}>Пользователь</option>
+                                            <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Администратор</option>
+                                            <option value="local_org_admin" {% if u.role == 'local_org_admin' %}selected{% endif %}>Локальный администратор</option>
+                                            {% if user.role == 'org_admin' %}
+                                            <option value="org_admin" {% if u.role == 'org_admin' %}selected{% endif %}>Глобальный администратор</option>
+                                            {% endif %}
+                                        </select>
+                                    {% else %}
+                                        <select class="role-select" disabled>
+                                            <option value="user" {% if u.role == 'user' %}selected{% endif %}>Пользователь</option>
+                                            <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Администратор</option>
+                                            <option value="local_org_admin" {% if u.role == 'local_org_admin' %}selected{% endif %}>Локальный администратор</option>
+                                            <option value="org_admin" {% if u.role == 'org_admin' %}selected{% endif %}>Глобальный администратор</option>
+                                        </select>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                            <td class="action-cell">
+                                {% if u.username != 'admin' and u.id != user.user_id and can_change %}
+                                        <button type="submit" class="btn-change">Изменить</button>
+                                    </form>
+                                {% elif u.username != 'admin' and u.id != user.user_id and not can_change %}
+                                    <span class="disabled-action">⛔ Нет прав</span>
+                                {% else %}
+                                    <span style="color: #999;">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="empty-state">
+                    <p>😕 В этой организации нет пользователей</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

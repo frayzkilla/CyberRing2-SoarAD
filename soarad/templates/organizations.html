@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Организации | SOAR Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .navbar {
+            background: white;
+            padding: 15px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-profile-link {
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .user-profile-link:hover {
+            opacity: 0.9;
+            transition: opacity 0.2s;
+        }
+        
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .logo-link {
+            text-decoration: none;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .organization-badge {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+        
+        .user-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        .role-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+        
+        .logout-btn {
+            color: #666;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        
+        .logout-btn:hover {
+            background: #f0f0f0;
+        }
+        
+        .admin-link {
+            color: #667eea;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: background 0.3s;
+            font-weight: 500;
+        }
+        
+        .admin-link:hover {
+            background: #f0f0f0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .header-section h1 {
+            color: #333;
+            font-size: 28px;
+        }
+        
+        .btn-back {
+            color: #666;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        
+        .btn-back:hover {
+            background: #f0f0f0;
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+        
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .organizations-table {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            background: #f8f9fa;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #555;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .org-link {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        
+        .org-link:hover {
+            text-decoration: underline;
+        }
+        
+        .stat-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .stat-admin-badge {
+            background: #ffd700;
+            color: #333;
+        }
+        
+        .stat-user-badge {
+            background: #e0e0e0;
+            color: #666;
+        }
+        
+        .stat-org-admin-badge {
+            background: #667eea;
+            color: white;
+        }
+        
+        .stat-local-org-admin-badge {
+            background: #9b59b6;
+            color: white;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: #999;
+        }
+        
+        .role-info {
+            background: #e8f4f8;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        .organization-badge-link {
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .organization-badge-link:hover {
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="{{ url_for('tickets') }}" class="logo-link">
+            <div class="logo">🚀 SOAR Platform</div>
+        </a>
+        <div class="user-info">
+            {% if user.role in ['org_admin', 'local_org_admin'] %}
+                <a href="{{ url_for('organization_settings', org_name=user.organization) }}" class="organization-badge-link">
+                    <div class="organization-badge">
+                        🏢 {{ user.organization }}
+                    </div>
+                </a>
+            {% else %}
+                <div class="organization-badge">
+                    🏢 {{ user.organization }}
+                </div>
+            {% endif %}
+            
+            {% if user.role in ['org_admin', 'local_org_admin'] %}
+                <a href="{{ url_for('organizations') }}" class="admin-link">🏢 Организации</a>
+            {% endif %}
+            
+            <a href="{{ url_for('user_profile', user_id=user.user_id) }}" class="user-profile-link">
+                <span class="user-badge">
+                    {{ user.username }} 
+                    <span class="role-badge">{{ user.role }}</span>
+                </span>
+            </a>
+            <a href="{{ url_for('logout') }}" class="logout-btn">Выйти</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="header-section">
+            <h1>🏢 Организации</h1>
+            <a href="{{ url_for('tickets') }}" class="btn-back">← Назад к тикетам</a>
+        </div>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        {% if user.role == 'local_org_admin' %}
+        <div class="role-info">
+            ℹ️ Вы вошли как <strong>локальный администратор организации</strong>. Вы видите только свою организацию: <strong>{{ user.organization }}</strong>
+        </div>
+        {% elif user.role == 'org_admin' %}
+        <div class="role-info">
+            🌍 Вы вошли как <strong>глобальный администратор</strong>. Вы видите все организации системы
+        </div>
+        {% endif %}
+        
+        <div class="organizations-table">
+            {% if organizations %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Название организации</th>
+                            <th>Всего пользователей</th>
+                            <th>Глобальные администраторы</th>
+                            <th>Локальные администраторы</th>
+                            <th>Администраторы</th>
+                            <th>Пользователи</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for org in organizations %}
+                        <tr>
+                            <td>
+                                <a href="{{ url_for('organization_detail', org_name=org.organization) }}" class="org-link">
+                                    🏢 {{ org.organization }}
+                                </a>
+                            </td>
+                            <td>{{ org.total_users or 0 }}</td>
+                            <td>
+                                <span class="stat-badge stat-org-admin-badge">
+                                    👑 {{ org.org_admin_count or 0 }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="stat-badge stat-local-org-admin-badge">
+                                    🏪 {{ org.local_org_admin_count or 0 }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="stat-badge stat-admin-badge">
+                                    ⚙️ {{ org.admin_count or 0 }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="stat-badge stat-user-badge">
+                                    👤 {{ org.user_count or 0 }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="empty-state">
+                    <p>😕 Нет доступных организаций</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

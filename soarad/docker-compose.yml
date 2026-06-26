@@ -1,0 +1,13 @@
+
+services:
+  web:
+    image: ${REGISTRY_IMAGE:-soarad-web}:${IMAGE_TAG:-latest}
+    build: .
+    container_name: soar-platform
+    ports:
+      - "8080:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE=/app/data/soar.db
+    restart: unless-stopped

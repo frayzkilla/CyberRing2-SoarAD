@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Настройки организации {{ org_name }} | SOAR Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .navbar {
+            background: white;
+            padding: 15px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .logo-link {
+            text-decoration: none;
+        }
+        
+        .logo-link:hover {
+            opacity: 0.9;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .organization-badge {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+        
+        .organization-badge-link {
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .organization-badge-link:hover {
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+        
+        .user-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        .user-profile-link {
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .user-profile-link:hover {
+            opacity: 0.9;
+        }
+        
+        .role-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+        
+        .logout-btn {
+            color: #666;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        
+        .logout-btn:hover {
+            background: #f0f0f0;
+        }
+        
+        .admin-link {
+            color: #667eea;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: background 0.3s;
+            font-weight: 500;
+        }
+        
+        .admin-link:hover {
+            background: #f0f0f0;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 0 20px;
+        }
+        
+        .settings-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .settings-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+        
+        .settings-header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .settings-header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .settings-body {
+            padding: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+        
+        .btn-save {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-top: 10px;
+        }
+        
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-back {
+            display: inline-block;
+            margin-top: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        
+        .btn-back:hover {
+            text-decoration: underline;
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+        
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="{{ url_for('tickets') }}" class="logo-link">
+            <div class="logo">🚀 SOAR Platform</div>
+        </a>
+        <div class="user-info">
+            {% if user.role in ['org_admin', 'local_org_admin'] %}
+                <a href="{{ url_for('organization_settings', org_name=user.organization) }}" class="organization-badge-link">
+                    <div class="organization-badge">
+                        🏢 {{ user.organization }}
+                    </div>
+                </a>
+            {% else %}
+                <div class="organization-badge">
+                    🏢 {{ user.organization }}
+                </div>
+            {% endif %}
+            
+            {% if user.role in ['org_admin', 'local_org_admin'] %}
+                <a href="{{ url_for('organizations') }}" class="admin-link">🏢 Организации</a>
+            {% endif %}
+            
+            <a href="{{ url_for('user_profile', user_id=user.user_id) }}" class="user-profile-link">
+                <span class="user-badge">
+                    {{ user.username }} 
+                    <span class="role-badge">{{ user.role }}</span>
+                </span>
+            </a>
+            <a href="{{ url_for('logout') }}" class="logout-btn">Выйти</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="settings-card">
+            <div class="settings-header">
+                <h1>⚙️ Настройки организации</h1>
+                <p>{{ org_name }}</p>
+            </div>
+            
+            <div class="settings-body">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="flash-messages">
+                            {% for category, message in messages %}
+                                <div class="flash-{{ category }}">{{ message }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
+                
+                <form method="POST">
+                    <div class="form-group">
+                        <label for="ip">🌐 IP адрес</label>
+                        <input type="text" id="ip" name="ip" 
+                               placeholder="Например: 192.168.1.100"
+                               value="{{ settings.ip if settings else '' }}">
+                        <div class="help-text">IP адрес сервера для подключения</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="port">🔌 Порт</label>
+                        <input type="number" id="port" name="port" 
+                               placeholder="Например: 8080"
+                               value="{{ settings.port if settings and settings.port > 0 else '' }}">
+                        <div class="help-text">Порт для подключения (по умолчанию: 8080)</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="api_key">🔑 API Key</label>
+                        <input type="password" id="api_key" name="api_key" 
+                               placeholder="Введите API ключ"
+                               value="{{ settings.api_key if settings else '' }}">
+                        <div class="help-text">API ключ для аутентификации</div>
+                    </div>
+                    
+                    <button type="submit" class="btn-save">💾 Сохранить настройки</button>
+                </form>
+                
+                <a href="{{ url_for('tickets') }}" class="btn-back">← Вернуться к тикетам</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

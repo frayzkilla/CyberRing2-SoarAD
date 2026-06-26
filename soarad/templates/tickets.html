@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тикеты | SOAR Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .navbar {
+            background: white;
+            padding: 15px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-profile-link {
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .user-profile-link:hover {
+            opacity: 0.9;
+            transition: opacity 0.2s;
+        }
+        
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .user-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        .role-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+        
+        .logout-btn {
+            color: #666;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        
+        .logout-btn:hover {
+            background: #f0f0f0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .header-section h1 {
+            color: #333;
+            font-size: 28px;
+        }
+        
+        .btn-create {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-create:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-create:active {
+            transform: translateY(0);
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+        
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #dc3545;
+        }
+        
+        .tickets-table-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            background: #f8f9fa;
+            color: #555;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 15px;
+            text-align: left;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+            color: #333;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .ticket-title {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+        
+        .ticket-title:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+        
+        .priority-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .priority-high {
+            background: #fee;
+            color: #c33;
+        }
+        
+        .priority-medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .priority-low {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-open {
+            background: #cce5ff;
+            color: #004085;
+        }
+        
+        .status-in_progress {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-closed {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        
+        .empty-state p {
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+        
+        .date-cell {
+            color: #666;
+            font-size: 13px;
+        }
+        .role-info {
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        .admin-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+
+        .user-badge-info {
+            background: #e0e0e0;
+            color: #666;
+            padding: 5px 12px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+        .logo-link {
+            text-decoration: none;
+        }
+
+        .logo-link:hover {
+            opacity: 0.9;
+            transition: opacity 0.3s;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .organization-badge {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+
+        .user-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .role-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-left: 8px;
+            text-transform: uppercase;
+        }
+
+        .logout-btn {
+            color: #666;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .logo-link {
+            text-decoration: none;
+        }
+
+        .logo-link:hover {
+            opacity: 0.9;
+            transition: opacity 0.3s;
+        }
+        .admin-link {
+          color: #667eea;
+          text-decoration: none;
+          padding: 8px 15px;
+          border-radius: 5px;
+          transition: background 0.3s;
+          font-weight: 500;
+      }
+
+      .admin-link:hover {
+          background: #f0f0f0;
+      }
+        .organization-badge-link {
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .organization-badge-link:hover {
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="{{ url_for('tickets') }}" class="logo-link">
+            <div class="logo">🚀 SOAR Platform</div>
+        </a>
+        <div class="user-info">
+            {% if user.role in ['org_admin', 'local_org_admin'] %}
+                <a href="{{ url_for('organization_settings', org_name=user.organization) }}" class="organization-badge-link">
+                    <div class="organization-badge">
+                        🏢 {{ user.organization }}
+                    </div>
+                </a>
+            {% else %}
+                <div class="organization-badge">
+                    🏢 {{ user.organization }}
+                </div>
+            {% endif %}
+            
+            {% if user.role in ['org_admin', 'local_org_admin'] %}
+                <a href="{{ url_for('organizations') }}" class="admin-link">🏢 Организации</a>
+            {% endif %}
+            
+            <a href="{{ url_for('user_profile', user_id=user.user_id) }}" class="user-profile-link">
+                <span class="user-badge">
+                    {{ user.username }} 
+                    <span class="role-badge">{{ user.role }}</span>
+                </span>
+            </a>
+            <a href="{{ url_for('logout') }}" class="logout-btn">Выйти</a>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="header-section">
+            <h1>📋 Управление тикетами</h1>
+            <a href="{{ url_for('ticket_create') }}" class="btn-create">
+                ➕ Создать тикет
+            </a>
+        </div>
+          <div class="role-info">
+            {% if user.role == 'admin' %}
+                <span class="admin-badge">👑 Администратор: видны все тикеты</span>
+            {% else %}
+                <span class="user-badge-info">👤 Пользователь: видны только ваши тикеты</span>
+            {% endif %}
+        </div>
+        <!-- Flash сообщения -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        
+        <div class="tickets-table-container">
+            {% if tickets %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Заголовок</th>
+                            <th>Приоритет</th>
+                            <th>Статус</th>
+                            <th>Владелец</th>
+                            <th>Дата создания</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ticket in tickets %}
+                        <tr>
+                            <td>
+                                <a href="{{ url_for('ticket_detail', ticket_id=ticket.id) }}" class="ticket-title">
+                                    {{ ticket.title }}
+                                </a>
+                            </td>
+                            <td>
+                                {% if ticket.priority == 'high' %}
+                                    <span class="priority-badge priority-high">Высокий</span>
+                                {% elif ticket.priority == 'medium' %}
+                                    <span class="priority-badge priority-medium">Средний</span>
+                                {% elif ticket.priority == 'low' %}
+                                    <span class="priority-badge priority-low">Низкий</span>
+                                {% else %}
+                                    <span class="priority-badge priority-medium">{{ ticket.priority }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if ticket.status == 'open' %}
+                                    <span class="status-badge status-open">Открыт</span>
+                                {% elif ticket.status == 'in_progress' %}
+                                    <span class="status-badge status-in_progress">В работе</span>
+                                {% elif ticket.status == 'closed' %}
+                                    <span class="status-badge status-closed">Закрыт</span>
+                                {% else %}
+                                    <span class="status-badge status-open">{{ ticket.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ ticket.owner_name }}</td>
+                            <td class="date-cell">{{ ticket.created_at[:10] if ticket.created_at else 'Н/Д' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="empty-state">
+                    <p>😕 Пока нет созданных тикетов</p>
+                    <a href="{{ url_for('ticket_create') }}" class="btn-create">
+                        ➕ Создать первый тикет
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
